@@ -1,0 +1,59 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build outputs
+dist/
+*.zip
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# AWS
+.aws/
+aws-credentials.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+.DS_Store
+*.log
+
+# Lambda
+lambda.zip
+*.zip
+
+# CloudFormation
+packaged.yaml
+packaged-*.yaml
+stack-outputs.json
+
+# LocalStack
+.localstack/
+localstack-docker-compose.override.yml
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Testing
+coverage/
+.nyc_output/
+
+# Package manager locks (optional - uncomment if you want to commit these)
+# pnpm-lock.yaml
+# package-lock.json
+# yarn.lock

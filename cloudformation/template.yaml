@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Image Service Infrastructure
+
+Parameters:
+  UploadArtifactVersion:
+    Type: String
+    Default: v1
+
+  PresignArtifactVersion:
+    Type: String
+    Default: v1
+
+Resources:
+  ImageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: image-storage
+
+  ImageUploadedTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: image-uploaded
+
+  ImageUploadQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: image-upload-events
+
+  QueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ImageUploadQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: sqs:SendMessage
+            Resource: !GetAtt ImageUploadQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref ImageUploadedTopic
+
+  QueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref ImageUploadedTopic
+      Protocol: sqs
+      Endpoint: !GetAtt ImageUploadQueue.Arn
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lambda-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  UploadImageLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: upload-image
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref ImageBucket
+          TOPIC_ARN: !Ref ImageUploadedTopic
+
+      Code:
+        S3Bucket: image-service-artifacts
+        S3Key: !Sub upload-image/lambda-${UploadArtifactVersion}.zip
+
+  GeneratePresignedUrlLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: generate-presigned-url
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref ImageBucket
+
+      Code:
+        S3Bucket: image-service-artifacts
+        S3Key: !Sub generate-presigned-url/lambda-${PresignArtifactVersion}.zip
+
+  ImageApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: image-api
+
+  UploadResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ImageApi
+      ParentId: !GetAtt ImageApi.RootResourceId
+      PathPart: upload
+
+  PresignResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ImageApi
+      ParentId: !GetAtt ImageApi.RootResourceId
+      PathPart: presign
+  UploadPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ImageApi
+      ResourceId: !Ref UploadResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UploadImageLambda.Arn}/invocations"
+  PresignPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ImageApi
+      ResourceId: !Ref PresignResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GeneratePresignedUrlLambda.Arn}/invocations"
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - UploadPostMethod
+      - PresignPostMethod
+      - UploadLambdaPermission
+      - PresignLambdaPermission
+    Properties:
+      RestApiId: !Ref ImageApi
+      StageName: dev
+
+  UploadLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref UploadImageLambda
+      Principal: apigateway.amazonaws.com
+
+  PresignLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref GeneratePresignedUrlLambda
+      Principal: apigateway.amazonaws.com
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: image-service-artifacts
+Outputs:
+  ApiId:
+    Value: !Ref ImageApi
+
+  UploadApiUrl:
+    Value: !Sub "http://localhost:4566/restapis/${ImageApi}/dev/_user_request_/upload"
+
+  PresignApiUrl:
+    Value: !Sub "http://localhost:4566/restapis/${ImageApi}/dev/_user_request_/presign"
+
+  BucketName:
+    Value: !Ref ImageBucket
+
+  TopicArn:
+    Value: !Ref ImageUploadedTopic
+
+  QueueUrl:
+    Value: !Ref ImageUploadQueue
+
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
