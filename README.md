@@ -100,25 +100,22 @@ Using CloudFormation template:
 
 ```bash
 # Deploy the CloudFormation stack
-aws cloudformation deploy \
-  --template-file cloudformation/template.yaml \
-  --stack-name image-service-stack \
-  --capabilities CAPABILITY_NAMED_IAM
+./scripts/release.sh <v1/v2/v3...>
 ```
 
 Or using provided deployment scripts:
 
 ```bash
 # Set up AWS resources
-./bash-deployment/setup.sh
-
-# Deploy Lambda functions
-./bash-deployment/deploy-lambda.sh
-./bash-deployment/deploy-presigned-lambda.sh
-
-# Deploy the full stack
-./scripts/deploy-stack.sh
+./bash-deployment/
 ```
+
+### Scripts to deploy with cloudformation
+
+- `scripts/build-and-upload.sh <v1/v2...>` - Build and upload Lambda artifacts to S3
+- `scripts/deploy-stack.sh <v1/v2...>` - Deploy CloudFormation stack
+- `scripts/set-lambda-env.sh` - Configure Lambda environment variables
+- `scripts/release.sh <v1/v2...>` - Full release workflow
 
 ## Usage
 
@@ -202,12 +199,7 @@ pnpm run build      # Compile TypeScript/JavaScript
 pnpm run package    # Create deployment zip
 ```
 
-### Scripts
 
-- `scripts/build-and-upload.sh` - Build and upload Lambda artifacts to S3
-- `scripts/deploy-stack.sh` - Deploy CloudFormation stack
-- `scripts/set-lambda-env.sh` - Configure Lambda environment variables
-- `scripts/release.sh` - Full release workflow
 
 ## AWS Resources Created
 
